@@ -1,0 +1,301 @@
+***Initial Document 
+
+1) Planned the database using RDBMS so it is easier for DataManagement 
+2) Planned the architecture of the entire application
+3) Asked Hr for confirmation on a few Doubts and redid the plan
+4) Thought how to make the application with best code practices and least amout of tokens using AI
+5) Sorted out rules and MCP for AI agent to strictly follow during execution of promts so as the Application follows strict guidelines during development
+6) All the Application promts and rules are mentioned below. While artifacts are placed in the git which links I will be providing also the inital run and instruction will be provided in readme.md 
+
+
+***rules for Backend 
+
+# Engineering Guidelines & Production Rules
+
+This repository contains the ACME HR Salary Management Platform. All AI coding agents, developers, and automated tools MUST strictly adhere to these production-grade rules during code generation, refactoring, testing, and git operations.
+
+---
+
+## 1. Architectural Principles
+
+1. **Clean Layered Architecture (Backend)**
+   - Strict separation of concerns: `Controller -> Service -> Repository -> Entity`.
+   - Controllers MUST NOT contain business logic or direct database calls.
+   - Services MUST NOT return JPA Entities directly to the API layer. Always map to and from DTOs (`RequestDTO`, `ResponseDTO`).
+   - Controllers MUST use `@Valid` on request bodies and return standardized `ResponseEntity<T>` envelopes.
+
+2. **Component Separation & Clean Code (Frontend)**
+   - Separate UI presentation components from stateful custom hooks and data fetching logic.
+   - Use strict TypeScript interfaces for all API response payloads and props. Never use `any`.
+
+3. **Data Integrity & Schema Mapping**
+   - JPA Entities must map 1:1 with the MySQL schema defined in `acme_salary_db`.
+   - Never alter the MySQL table schemas without updating both Flyway/Liquibase migrations and JPA mappings.
+   - The field `compensation.total_company_cost` is a stored calculated column in MySQL. Mark it as `@Column(insertable = false, updatable = false)` in JPA to prevent ORM write overrides.
+
+---
+
+## 2. Java & Spring Boot Standards
+
+1. **Java Version & Language Features**
+   - Java 17 baseline. Use Java `record` types for immutable DTOs wherever applicable.
+   - Prefer constructor injection over field injection (`@Autowired` on fields is strictly FORBIDDEN).
+
+2. **Performance & Scalability (10,000 Records Rule)**
+   - Never execute $N+1$ queries. Use JPQL `@EntityGraph` or explicit `JOIN FETCH` when fetching related associations.
+   - Aggregations (e.g., total CTC spend, average salary, median) MUST be computed directly at the database layer using SQL native or JPQL queries—NEVER pull 10,000 entities into Java memory to calculate averages.
+   - Seeding 10,000 records MUST use JDBC batch processing (`saveAll` with `spring.jpa.properties.hibernate.jdbc.batch_size=500`) to execute within 5 seconds.
+
+3. **Error Handling & Logging**
+   - Do NOT capture exceptions with empty `catch` blocks or `printStackTrace()`.
+   - Use `@RestControllerAdvice` (`GlobalExceptionHandler`) to intercept all application exceptions.
+   - Return standard RFC 7807 problem details or uniform JSON error payloads:
+     ```json
+     {
+       "timestamp": "2026-09-23T13:15:00Z",
+       "status": 404,
+       "error": "Not Found",
+       "message": "Employee with ID 1042 not found",
+       "path": "/api/v1/employees/1042"
+     }
+     ```
+
+4. **Security & CORS Rules**
+   - Standardize on Spring Security 6 stateless HTTP Basic Auth or Bearer tokens.
+   - Explicitly define CORS origins (`http://localhost:3000` for frontend dev).
+   - Never expose raw database credentials or secrets in code files. Use `application.properties` with environment variable overrides.
+
+---
+
+## 3. Testing Requirements
+
+1. **Coverage Expectations**
+   - All core business logic in Service classes MUST have unit test coverage using JUnit 5 and Mockito.
+   - Controllers MUST be verified using `@WebMvcTest` asserting HTTP status codes (200, 201, 400, 401, 404).
+
+2. **Deterministic & Isolated Tests**
+   - Tests MUST NOT depend on an active local MySQL instance. Use H2 in-memory database (`@DataJpaTest`) or Mockito mocks for test isolation.
+   - Every test MUST cover at least 3 scenarios:
+     1. **Happy Path:** Valid input yields expected 200/201 result.
+     2. **Edge Case:** Boundary conditions (e.g., empty dataset, 0 headcount, median on even vs. odd records).
+     3. **Worst Case / Failure:** Non-existent IDs, invalid inputs, or duplicate resources throwing expected exceptions.
+
+---
+
+## 4. Git & Commit Workflow
+
+1. **Atomic Commits Only**
+   - Never dump an entire multi-layered feature into a single massive commit.
+   - Commit incrementally using the Model Context Protocol (`git` MCP) after completing each distinct milestone.
+
+2. **Conventional Commit Syntax**
+   All commit messages MUST follow the Conventional Commits format:
+   - `feat(scope): ...` for new features
+   - `fix(scope): ...` for bug fixes
+   - `test(scope): ...` for adding or updating unit tests
+   - `docs(scope): ...` for PRDs, architecture notes, or rules
+
+3. **Required Commit Evolution Order**
+   - **Commit 1:** `docs: add requirements document and rules.md`
+   - **Commit 2:** `feat(config): setup dependencies, application.properties, and security config`
+   - **Commit 3:** `feat(domain): implement JPA entities and DTO records`
+   - **Commit 4:** `feat(repository): add Spring Data repositories and native aggregation queries`
+   - **Commit 5:** `feat(service): implement EmployeeService and batch SeederService`
+   - **Commit 6:** `feat(analytics): implement AnalyticsService for CTC, median, and departmental breakdowns`
+   - **Commit 7:** `feat(controller): expose REST controllers with global exception handling`
+   - **Commit 8:** `test: add unit tests for services, controllers, and exception scenarios`
+
+
+***promt for Backend
+
+You are a Principal Java/Spring Boot Engineer building the backend for ACME Organization's Salary Management System. You MUST strictly follow all architectural, engineering, and commit rules defined in `rules.md`.
+
+=== PROJECT ENVIRONMENT & CONSTRAINTS ===
+- Framework: Java 17, Spring Boot 3.x (aligning with Spring Framework 6).
+- Database: MySQL 8.0+ (using database name `acme_salary_db`).
+- Location: Work inside `salary-management-backend/`.
+- Dependencies (`pom.xml`):
+  - `spring-boot-starter-data-jpa`
+  - `spring-boot-starter-web`
+  - `spring-boot-starter-security`
+  - `spring-boot-starter-validation`
+  - `mysql-connector-j`
+  - `h2` (for fast, isolated in-memory unit/integration testing)
+  - `spring-boot-starter-test` & `spring-security-test`
+
+=== EXACT DATABASE SCHEMA MAPPING ===
+Your JPA Entities MUST map strictly to the existing MySQL tables in `acme_salary_db`:
+1. `departments` (`id` BIGINT PK, `name` VARCHAR, `code` VARCHAR)
+2. `job_positions` (`id` BIGINT PK, `title` VARCHAR, `department_id` FK)
+3. `countries` (`country_code` CHAR(3) PK, `country_name` VARCHAR, `currency_code` CHAR(3))
+4. `employees` (`id` BIGINT PK, `emp_code` VARCHAR, `first_name` VARCHAR, `last_name` VARCHAR, `email` VARCHAR, `phone_number` VARCHAR, `department_id` FK, `job_position_id` FK, `country_code` FK, `status` VARCHAR, `date_of_joining` DATE)
+5. `compensation` (`id` BIGINT PK, `employee_id` FK Unique, `base_pay` DECIMAL, `pf_deduction` DECIMAL, `other_deductions` DECIMAL, `paid_leaves_allowance` INT, `sick_leaves_allowance` INT, `total_company_cost` DECIMAL [Stored Calculated Column])
+   * CRITICAL: Mark `total_company_cost` as `@Column(insertable = false, updatable = false)` in JPA to prevent ORM write overrides.
+6. `employee_monthly_leaves` (`id` BIGINT PK, `employee_id` FK, `pay_period` CHAR(7), `paid_leaves_taken` INT, `sick_leaves_taken` INT, `unpaid_leaves_taken` INT)
+
+=== ARCHITECTURE & CODE QUALITY RULES (PER RULES.MD) ===
+Follow a clean multi-layer architecture under `com.example.salarymanagement`:
+- `config/`:
+  - `SecurityConfig`: Single-role HR Manager access using HTTP Basic Authentication (`ROLE_HR`). Permit unauthenticated access to health check `/actuator/health`. Enable CORS for `http://localhost:3000`.
+- `controller/`: REST controllers using constructor injection, returning standard `ResponseEntity<T>` envelopes with `@Valid` on request bodies. Controllers MUST NOT contain business logic.
+- `dto/`: Java `record` types or clean classes for DTOs (`EmployeeRequestDTO`, `EmployeeResponseDTO`, `SalaryAnalyticsDTO`, `DepartmentSummaryDTO`, `CountrySummaryDTO`). Do NOT expose JPA Entities directly via APIs.
+- `entity/`: Mapping entities with proper `@ManyToOne` / `@OneToOne` relationships.
+- `exception/`: `@RestControllerAdvice` global exception handling returning standardized RFC-compliant JSON payloads (`timestamp`, `status`, `error`, `message`, `path`) for `ResourceNotFoundException`, `DuplicateResourceException`, and validation errors.
+- `repository/`: Spring Data JPA repositories. All 10,000-record aggregations MUST be executed directly at the database layer using native SQL/JPQL queries—NEVER pull 10,000 entities into Java memory to compute averages. Use `@EntityGraph` or `JOIN FETCH` to prevent $N+1$ query issues.
+- `service/`: Interfaces and implementations (`EmployeeService`, `AnalyticsService`, `SeederService`).
+
+=== CORE FEATURES & API ENDPOINTS ===
+1. Employee Management API:
+   - `GET /api/v1/employees` (Paginated via `Pageable`, filterable by `departmentId`, `countryCode`, `status`, and `search` query).
+   - `GET /api/v1/employees/{id}` (Get full profile with compensation breakdown).
+   - `POST /api/v1/employees` (Create employee profile and initial compensation).
+   - `PUT /api/v1/employees/{id}/salary` (Update `basePay`, `pfDeduction`, and leave allowances).
+
+2. HR Executive Analytics API (Target sub-50ms execution):
+   - `GET /api/v1/analytics/summary`: Aggregate total company CTC, global average salary, median salary, and active headcount.
+   - `GET /api/v1/analytics/breakdown/country`: Group headcount, average base salary, and total CTC spend by `country_code`.
+   - `GET /api/v1/analytics/breakdown/department`: Group headcount and total CTC spend by `department`.
+   - `GET /api/v1/analytics/top-earners`: Return top N highest-paid employees globally and per country.
+
+3. High-Performance 10,000 Data Seeder:
+   - Implement `SeederService` exposed via `POST /api/v1/seed` or `CommandLineRunner`.
+   - MUST use JDBC Batching (`saveAll` with `hibernate.jdbc.batch_size=500`) to seed 10,000 realistic employees across 5 departments, 10 countries, and valid salary structures within ~3-5 seconds.
+
+=== UNIT & INTEGRATION TESTING REQUIREMENTS (RULES.MD STRICT ENFORCEMENT) ===
+Write isolated JUnit 5 and Mockito tests using H2 database (`@DataJpaTest`) or Mockito mocks.
+Every service/controller test suite MUST cover at least 3 distinct scenarios:
+1. `EmployeeServiceTest`:
+   - **Happy Path:** Successful employee creation and correct CTC mapping.
+   - **Edge Case:** Attempting to create an employee with an existing email or `emp_code` (throws `DuplicateResourceException`).
+   - **Worst Case:** Fetching or updating a non-existent employee ID (throws `ResourceNotFoundException`).
+2. `AnalyticsServiceTest`:
+   - **Happy Path:** Average and median salary calculations across a mock dataset.
+   - **Edge Case:** Even vs. odd headcount median calculations.
+   - **Worst Case:** Handling empty dataset (0 employees) gracefully without divide-by-zero exceptions.
+3. `EmployeeControllerTest`: `@WebMvcTest` verifying HTTP status codes (200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 404 Not Found).
+
+=== MANDATORY INCREMENTAL GIT COMMIT WORKFLOW ===
+You MUST use the `git` tool/mcp to make clean, atomic commits as you build. Do NOT dump all code into one single commit. Execute commits in this exact sequence as milestones are completed:
+
+1. `docs: add requirements document and rules.md`
+2. `feat(config): setup dependencies, application.properties, and security config`
+3. `feat(domain): implement JPA entities and DTO records`
+4. `feat(repository): add Spring Data repositories and native aggregation queries`
+5. `feat(service): implement EmployeeService and batch SeederService`
+6. `feat(analytics): implement AnalyticsService for CTC, median, and departmental breakdowns`
+7. `feat(controller): expose REST controllers with global exception handling`
+8. `test: add unit tests for services, controllers, and edge/exception scenarios`
+
+Start by inspecting the workspace directory, generating the configuration and entity files, and executing the first atomic commit!
+
+
+***rules for frontend
+
+# Engineering Guidelines & Production Rules
+
+---
+
+## 1. Backend Architecture & Spring Boot Principles
+[Retain prior Java 17, Spring Boot 3.x, MySQL 8.0+, JDBC batching, and JUnit 5 rules]
+
+---
+
+## 2. Angular 15 & Frontend Production Rules
+
+1. **Architecture & Framework Standards**
+   - **Framework Baseline:** Angular 15.0.x with TypeScript 4.8.
+   - **Component Architecture:** Use **Standalone Components** (`standalone: true` on `@Component`). Do NOT generate `NgModule` unless necessary.
+   - **State Management & Reactivity:** Angular 15 does NOT support Signals. Use **RxJS Observables** (`BehaviorSubject`, `Subject`, `pipe()`) for reactive state management.
+   - **Template Subscription:** Always unwraps Observables in templates using the `async` pipe (`*ngIf="data$ | async as data"`). Avoid explicit `.subscribe()` calls in component classes to prevent memory leaks.
+   - **Strict Typing:** TypeScript strict mode enabled. Define strict interfaces for all API DTO payloads under `src/app/core/models/`.
+
+2. **UI Design & UX Standards**
+   - **Design System:** Utility-first styling via **Tailwind CSS v3** (`tailwindcss@^3.3.0`, `postcss`, `autoprefixer`) and **PrimeNG v15** (`primeng@^15.0.0`).
+   - **Color Palette:** Modern, executive glassmorphic dark/light palette (Slate/Zinc neutral shades, Indigo accent colors).
+   - **Map Component:** Use **Leaflet.js** (`leaflet`, `@types/leaflet`) for interactive world map rendering with custom HTML markers and dialog popups.
+
+3. **Performance & Optimization**
+   - Enforce `changeDetection: ChangeDetectionStrategy.OnPush` across all components.
+   - Implement debouncing (`debounceTime(300)`) on search inputs before dispatching backend requests.
+   - Lazy load routes using `loadComponent: () => import(...)`.
+
+4. **Frontend Commit Workflow**
+   - `feat(frontend): setup Angular 15 standalone structure, Tailwind CSS, PrimeNG, and Leaflet`
+   - `feat(frontend-core): create DTO interfaces, HttpClient services, and HTTP Basic Auth interceptor`
+   - `feat(frontend-map): build Home page with interactive Leaflet world map & employee callouts`
+   - `feat(frontend-db): build Employee Directory with paginated data grid, global search, and dynamic filters`
+   - `feat(frontend-analytics): add HR analytics charts for salary distribution and regional spend`
+   - `style(frontend): polish layout with glassmorphic cards, animations, and responsive styles`
+
+***Promt for frontend
+
+You are a Principal Frontend Engineer building a modern, aesthetic, production-grade Angular web application for ACME Organization's Salary Management Platform. You MUST strictly follow all guidelines defined in `rules.md`.
+
+=== PROJECT SETUP & DEPENDENCIES ===
+- Location: Work inside `salary-management-frontend/`.
+- Framework: Angular 17+ (using Standalone Components).
+- UI & Styling:
+  - Tailwind CSS (for utility layouts, minimal dark/light themes, sleek card designs)
+  - PrimeNG or Angular Material (for data tables, dropdowns, and paginators)
+  - Lucide-Angular or FontAwesome (for modern icons)
+  - Leaflet.js & `@types/leaflet` (for the interactive world map landing page)
+  - Chart.js / ng2-charts (for executive salary analytic charts)
+
+=== ARCHITECTURE & DIRECTORY STRUCTURE ===
+Structure the code under `src/app/`:
+- `core/`:
+  - `models/`: Interfaces for `Employee`, `Compensation`, `AnalyticsSummary`, `CountryBreakdown`, `DepartmentBreakdown`, `PageResponse`.
+  - `services/`: `EmployeeService`, `AnalyticsService`, `MapService` (interacting with backend endpoints at `http://localhost:8080/api/v1/`).
+  - `interceptors/`: `BasicAuthInterceptor` (attaching HR credentials) and `HttpErrorInterceptor`.
+- `features/`:
+  - `home/`: Standalone `HomeComponent` (World Map with cloud markers & CTA).
+  - `employee-directory/`: Standalone `EmployeeDirectoryComponent` (Table, search, filters, pagination).
+  - `analytics/`: Standalone `AnalyticsDashboardComponent` (Bar charts, distribution, top earners).
+- `shared/`: Reusable components (Header, StatCard, LoadingSpinner).
+
+=== COMPONENT SPECIFICATIONS ===
+
+1. HOME PAGE (`/` route - Minimalist & Aesthetic World Map):
+   - Hero header: "ACME Global Workforce & Compensation Intelligence".
+   - Interactive World Map (using Leaflet.js):
+     - Map style: Clean light/dark canvas tile layer (e.g., CartoDB Positron / Dark Matter).
+     - Markers: Custom HTML callout badges ("cloud comments") pinned on countries where employees exist (e.g., India, USA, UK, Germany).
+     - Dialogue / Tooltip: Hovering or clicking a marker pops up a stylized dialogue box showing:
+       `[Country Name] - Emp: 2,881 | Total CTC: $X,XXX,XXX`.
+   - Primary Call-To-Action (CTA) Button:
+     - Prominent, sleek button: **"Enter Employee Database →"** (navigates to `/employees`).
+   - Executive Stat Overlay: Floating glassmorphic cards showing Total Headcount (10,000), Global CTC, and Average Salary.
+
+2. EMPLOYEE DATABASE PAGE (`/employees` route):
+   - Minimalist Data Grid / Table:
+     - Columns: Emp Code, Name, Department, Job Position, Country, Status, Base Pay, Total CTC, Actions.
+   - Interactive Toolbar:
+     - Global search input (Debounced 300ms) searching by Name, Email, or Emp Code.
+     - Multi-select Dropdown filters for: Department, Country, and Status.
+   - Pagination:
+     - Page size selector (10, 25, 50, 100).
+     - Page navigation with total record count indicator ("Showing 1 to 25 of 10,000 employees").
+   - Action Drawer / Modal:
+     - View detailed employee compensation breakdown (Base Pay, PF Deduction, Net CTC, Leave Allowances).
+     - Update salary button with validation toast messages.
+
+3. HR ANALYTICS DASHBOARD (`/analytics` route):
+   - Visual charts comparing Average Salary and Total Spend by Country and Department.
+   - Top Earners leaderboard widget.
+
+=== ANGULAR CODE QUALITY RULES ===
+- Use Angular Signals (`signal()`, `computed()`) for component reactive state.
+- Use `toSignal()` to convert HttpClient Observables into Signals.
+- Set `changeDetection: ChangeDetectionStrategy.OnPush` on all components.
+- Implement responsive design (Desktop first, tablet/mobile compliant).
+
+=== MANDATORY INCREMENTAL GIT COMMIT WORKFLOW ===
+You MUST use the `git` tool/mcp to make atomic commits after completing each milestone:
+1. `feat(frontend): setup Angular standalone project, Tailwind CSS, and Leaflet dependencies`
+2. `feat(frontend-core): create TypeScript DTO interfaces, HttpClient services, and auth interceptors`
+3. `feat(frontend-map): build Home page with interactive Leaflet world map & employee callout dialogues`
+4. `feat(frontend-db): build Employee Directory with paginated data grid, global search, and dynamic filters`
+5. `feat(frontend-analytics): add HR analytics charts for salary distribution and regional spend`
+6. `style(frontend): refine UI styling with modern glassmorphism, animations, and aesthetic layout`
+
+Start by generating the project structure, establishing the API services, and executing the first atomic Git commit!
