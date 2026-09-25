@@ -8,6 +8,11 @@
 6) All the Application promts and rules are mentioned below. While artifacts are placed in the git which links I will be providing also the inital run and instruction will be provided in readme.md 
 
 
+Architecture of entire application :- https://github.com/ankit-1499/salary-management-application/blob/master/ARCHITECTURE.md
+Architecture of entire backend :- https://github.com/ankit-1499/salary-management-backend/blob/master/ARCHITECTURE.md
+Architecture of entire frontend :- https://github.com/ankit-1499/salary-management-frontend/blob/master/ARCHITECTURE.md
+
+
 ***rules for Backend 
 
 # Engineering Guidelines & Production Rules
